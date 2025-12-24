@@ -1,0 +1,89 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: webserver
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-content
+  namespace: webserver
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>CCE Test</title>
+    </head>
+    <body>
+      <h1>SUCCESS</h1>
+      <p>New image works correctly in offline Kubernetes.</p>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webtest-deployment
+  namespace: webserver
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: webtest
+  template:
+    metadata:
+      labels:
+        app: webtest
+    spec:
+      containers:
+      - name: web
+        image: swr.eg-p1xdh.p1xdh.eg/ck/webtest:v1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: web-content-volume
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+      volumes:
+      - name: web-content-volume
+        configMap:
+          name: web-content
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webtest-service
+  namespace: webserver
+spec:
+  selector:
+    app: webtest
+  type: NodePort
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+    nodePort: 30080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webtest-ingress
+  namespace: webserver
+  annotations:
+    kubernetes.io/ingress.class: "nginx"  # or your CCE ingress controller
+spec:
+  rules:
+  - host: webtest.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: webtest-service
+            port:
+              number: 80
+
